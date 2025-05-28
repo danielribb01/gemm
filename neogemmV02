@@ -194,7 +194,7 @@ __global__ void warmupKernel() {
 }
 
             
-void neoGemmV1(torch::Tensor A, torch::Tensor B, torch::Tensor C) {
+void neoGemmV2(torch::Tensor A, torch::Tensor B, torch::Tensor C) {
     int M = A.size(0), K = A.size(1), N = B.size(1);
     
     warmupKernel<<<1024, 1024>>>();
@@ -239,6 +239,6 @@ void neoGemmV1(torch::Tensor A, torch::Tensor B, torch::Tensor C) {
         <<<(M/BM) * (N/BN), NUM_THREADS>>>(M, N, K, bf16_data_ptr_C, d_tma_map_A, d_tma_map_B);
 }
 PYBIND11_MODULE(neoGEMM, m) {
-    m.def("neoGemmV1", &neoGemmV1, "GEMM",
+    m.def("neoGemmV2", &neoGemmV2, "GEMM",
           py::arg("A"), py::arg("B"), py::arg("C"));
 }
