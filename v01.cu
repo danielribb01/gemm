@@ -33,11 +33,11 @@ void neoGemm(torch::Tensor A, torch::Tensor B, torch::Tensor C) {
     const float *B_ptr = B.data_ptr<float>();
     float *C_ptr = C.data_ptr<float>();
 
-    dim3 gridDim(CEIL_DIV(N, 32), CEIL_DIV(M, 32));
+    dim3 gridDim(CEIL_DIV(M, 32), CEIL_DIV(N, 32));
     dim3 blockDim(32 * 32);
 
-    float alpha = 0.5;
-    float beta = 3.0;
+    float alpha = 1;
+    float beta = 0;
 
     gemm<32><<<gridDim, blockDim>>>(M, N, K, alpha, A_ptr, B_ptr, beta, C_ptr);
 }
