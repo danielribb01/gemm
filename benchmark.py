@@ -1,5 +1,5 @@
 import torch
-import neogemm
+import neoGEMM
 import time
 
 # Dimensões
@@ -10,62 +10,22 @@ K = 1024
 # Matrizes em bfloat16
 tensorA = torch.randn(M, K, device='cuda').to(torch.bfloat16)
 tensorB = torch.randn(K, N, device='cuda').to(torch.bfloat16)
-tensorC = torch.zeros(M, N, device='cuda')  # FP32
+tensorC = torch.zeros(M, N, device='cuda').to(torch.bfloat16)  # FP32
 
-# Calcular FLOPS teóricos
-flops = 2 * M * N * K  # Multiplicação + Soma para cada elemento de saída
-print(f"=== CONFIGURAÇÃO ===")
-print(f"Dimensões: M={M}, N={N}, K={K}")
-print(f"FLOPS por operação: {flops / 1e9:.2f} GFLOPS ({flops / 1e12:.3f} TFLOPS)")
-
-print("\n=== COMPARAÇÃO COM PERFORMANCE ===")
+print("=== COMPARAÇÃO SIMPLIFICADA ===")
 
 # PyTorch: BF16→FP32 antes da multiplicação (referência)
 print("\n1. PyTorch (BF16→FP32):")
-torch.cuda.synchronize()
-start_time = time.time()
-
-# Warmup
-for _ in range(10):
-    _ = tensorA.float() @ tensorB.float()
-torch.cuda.synchronize()
-
-# Medição real
-start_time = time.time()
-for _ in range(100):
-    torch_result = tensorA.float() @ tensorB.float()
-torch.cuda.synchronize()
-pytorch_time = (time.time() - start_time) / 100
-
+torch_result = tensorA @ tensorB.t()
 print(f"Shape: {torch_result.shape}, dtype: {torch_result.dtype}")
-print(f"Tempo médio: {pytorch_time * 1000:.3f} ms")
-pytorch_tflops = flops / pytorch_time / 1e12
-print(f"**PERFORMANCE: {pytorch_tflops:.2f} TFLOPS**")
-print(f"Amostra [0:3, 0:3]:\n{torch_result[:3, :3]}")
+print(f"Amostra [0:3, 0:3]:\n{torch_result[:5, :5]}")
 
 # Seu kernel customizado
 print("\n2. neoGemm kernel:")
-torch.cuda.synchronize()
-
-# Warmup
-for _ in range(10):
-    tensorC.zero_()
-    neogemm.neoGemm(tensorA, tensorB, tensorC)
-torch.cuda.synchronize()
-
-# Medição real
-start_time = time.time()
-for _ in range(100):
-    tensorC.zero_()
-    neogemm.neoGemm(tensorA, tensorB, tensorC)
-torch.cuda.synchronize()
-neogemm_time = (time.time() - start_time) / 100
-
+neoGEMM.neoGemmV2(tensorA, tensorB, tensorC)
+tensorC = tensorC.t()
 print(f"Shape: {tensorC.shape}, dtype: {tensorC.dtype}")
-print(f"Tempo médio: {neogemm_time * 1000:.3f} ms")
-neogemm_tflops = flops / neogemm_time / 1e12
-print(f"**PERFORMANCE: {neogemm_tflops:.2f} TFLOPS**")
-print(f"Amostra [0:3, 0:3]:\n{tensorC[:3, :3]}")
+print(f"Amostra [0:3, 0:3]:\n{tensorC[:5, :5]}")
 
 # Análise das diferenças
 print("\n=== ANÁLISE DE DIFERENÇAS ===")
@@ -91,10 +51,47 @@ close_elements = torch.abs(tensorC - torch_result) < 1e-3
 percentage_close = (close_elements.sum().float() / close_elements.numel() * 100).item()
 print(f"\nElementos dentro de 1e-3: {percentage_close:.2f}%")
 
-# Comparação de performance
-print(f"\n=== RESUMO FINAL - TFLOPS ===")
-speedup = pytorch_time / neogemm_time
-print(f"PyTorch:  {pytorch_tflops:.2f} TFLOPS ({pytorch_time * 1000:.2f} ms)")
-print(f"neoGemm:  {neogemm_tflops:.2f} TFLOPS ({neogemm_time * 1000:.2f} ms)")
-print(f"Speedup: {speedup:.2f}x {'(neoGemm GANHOU!)' if speedup > 1 else '(PyTorch GANHOU!)'}")
-print(f"Operação total: {flops / 1e12:.3f} TFLOPS computados")
+
+
+flops = 2 * M * N * K 
+
+print("\n1. PyTorch (BF16→FP32):")
+torch.cuda.synchronize()
+
+# Warmup
+for _ in range(10):
+    _ = tensorA.float() @ tensorB.float()
+torch.cuda.synchronize()
+
+# Medição real
+start_time = time.time()
+for _ in range(100):
+    torch_result = tensorA.float() @ tensorB.float().t()
+torch.cuda.synchronize()
+pytorch_time = (time.time() - start_time) / 100
+
+print(f"Tempo médio: {pytorch_time * 1000:.3f} ms")
+pytorch_tflops = flops / pytorch_time / 1e12
+print(f"**PERFORMANCE: {pytorch_tflops:.2f} TFLOPS**")
+
+# Seu kernel customizado
+print("\n2. neoGemm kernel:")
+torch.cuda.synchronize()
+
+# Warmup
+for _ in range(100):
+    tensorC.zero_()
+    neoGEMM.neoGemmV2(tensorA, tensorB, tensorC)
+torch.cuda.synchronize()
+
+# Medição real
+start_time_neogemm = time.time()
+for _ in range(100):
+    neoGEMM.neoGemmV2(tensorA, tensorB, tensorC)
+torch.cuda.synchronize()
+neogemm_time = (time.time() - start_time_neogemm) / 100
+
+print(f"Tempo médio: {neogemm_time * 1000:.3f} ms")
+neogemm_tflops = flops / neogemm_time / 1e12
+print(f"**PERFORMANCE: {neogemm_tflops:.2f} TFLOPS**")
+
