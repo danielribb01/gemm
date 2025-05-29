@@ -93,10 +93,10 @@ __device__ void warpgroup_wait()
 template<int BM, int BN, int BK, int WGMMA_M, int WGMMA_N, int WGMMA_K, int NUM_THREADS>
 __global__ void __launch_bounds__(NUM_THREADS) gemm(int M, int N, int K, bf16* C, const CUtensorMap* tensorMapA, const CUtensorMap* tensorMapB)
 {
-    __shared__ alignas(128) bf16 sA[BM * BK];
-    __shared__ alignas(128) bf16 sB[BK * BN];
+    __shared__ alignas(128) bf16 sA[BM * BK]; // tma requer alinhamento de 128 bytes
+    __shared__ alignas(128) bf16 sB[BK * BN];// tma requer alinhamento de 128 bytes
 
-    float d[WGMMA_N/16][8];
+    float d[WGMMA_N/16][8];// [64/16][8] - [4][8], registrador dos acumuladores
 
     static_assert(sizeof(d) * 128 == BM * BN * sizeof(float));
     memset(d, 0, sizeof(d));
@@ -104,35 +104,37 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm(int M, int N, int K, bf16* C
     const int num_blocks_k = K / BK;
     int num_block_n = blockIdx.x % (N / BN);
     int num_block_m = blockIdx.x / (N / BN);
-    #pragma nv_diag_suppress static_var_with_dynamic_init
+    #pragma nv_diag_suppress static_var_with_dynamic_init // usamos esse pragma para  desativar os avisos sobre a inicialização dinâmica de variáveis estáticas, que vai ocorrer com o barrier A e B
     __shared__ barrier barA;
     __shared__ barrier barB;
 
+    // Apenas a thread 0 inicializa as barreiras
     if(threadIdx.x == 0){
-        init(&barA, blockDim.x);
-        init(&barB, blockDim.x);
-        cde::fence_proxy_async_shared_cta();
+        init(&barA, blockDim.x); // barreira de cópia de A
+        init(&barB, blockDim.x);    // barreira de cópia de B
+        cde::fence_proxy_async_shared_cta(); // garante que a inicialização das barreiras seja enxergadas por todas as threads
     }
     __syncthreads();
 
-    barrier::arrival_token tokenA, tokenB;
+    barrier::arrival_token tokenA, tokenB; // garanta que as cópias de A e B realmente tenham sido feitas
     for(int block_k_iter = 0; block_k_iter < num_blocks_k; ++ block_k_iter)
     {
         if(threadIdx.x == 0){
             cde::cp_async_bulk_tensor_2d_global_to_shared(&sA[0], tensorMapA, block_k_iter*BK, num_block_m*BM, barA);
-            tokenA = cuda::device::barrier_arrive_tx(barA, 1, sizeof(sA));
+            tokenA = cuda::device::barrier_arrive_tx(barA, 1, sizeof(sA)); //barrier_arrive_tx(barreira, 1(indica que estamos fazendo uma atualização), deve preencher toda a SMEM)
             cde::cp_async_bulk_tensor_2d_global_to_shared(&sB[0], tensorMapB, block_k_iter*BK, num_block_n*BN, barB);
-            tokenB = cuda::device::barrier_arrive_tx(barB, 1, sizeof(sB));
+            tokenB = cuda::device::barrier_arrive_tx(barB, 1, sizeof(sB)); 
         }else{
             tokenA = barA.arrive();
             tokenB = barB.arrive();
         }
 
-        barA.wait(std::move(tokenA));
+        barA.wait(std::move(tokenA)); // garante que todas as threads tenha chegado
         barB.wait(std::move(tokenB));
         __syncthreads();
 
         warpgroup_arrive();
+        // D é onde ele acumula os resultados
         wgmma64<1,1,1,0,0>(d, &sA[0], &sB[0]);
         wgmma64<1,1,1,0,0>(d, &sA[WGMMA_K], &sB[WGMMA_K]);
         wgmma64<1,1,1,0,0>(d, &sA[WGMMA_K * 2], &sB[2 * WGMMA_K]);
@@ -144,8 +146,8 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm(int M, int N, int K, bf16* C
 
     {
         int tid = threadIdx.x;
-        int lane = tid % 32;
-        int warp = tid / 32;
+        int lane = tid % 32; // posição da thread dentro do warp
+        int warp = tid / 32; // pegando o id do warp
         uint32_t row = warp*16 + lane / 4;
         bf16 *block_C = C + num_block_n*BN*M + num_block_m*BM;
 
