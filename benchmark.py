@@ -6,10 +6,9 @@ import time
 M = 1024
 N = 1024
 K = 1024
-
 # Matrizes em bfloat16
 tensorA = torch.randn(M, K, device='cuda').to(torch.bfloat16)
-tensorB = torch.randn(K, N, device='cuda').to(torch.bfloat16)
+tensorB = torch.randn(N, K, device='cuda').to(torch.bfloat16)
 tensorC = torch.zeros(M, N, device='cuda').to(torch.bfloat16)  # FP32
 
 print("=== COMPARAÇÃO SIMPLIFICADA ===")
@@ -22,10 +21,12 @@ print(f"Amostra [0:3, 0:3]:\n{torch_result[:5, :5]}")
 
 # Seu kernel customizado
 print("\n2. neoGemm kernel:")
-neoGEMM.neoGemmV2(tensorA, tensorB, tensorC)
+neoGEMM.neoGemmV1(tensorA, tensorB, tensorC)
 tensorC = tensorC.t()
 print(f"Shape: {tensorC.shape}, dtype: {tensorC.dtype}")
 print(f"Amostra [0:3, 0:3]:\n{tensorC[:5, :5]}")
+
+
 
 # Análise das diferenças
 print("\n=== ANÁLISE DE DIFERENÇAS ===")
@@ -60,13 +61,16 @@ torch.cuda.synchronize()
 
 # Warmup
 for _ in range(10):
-    _ = tensorA.float() @ tensorB.float()
+    _ = tensorA @ tensorB
 torch.cuda.synchronize()
+
+tensorAA = tensorA
+tensorBB = tensorB.t()
 
 # Medição real
 start_time = time.time()
 for _ in range(100):
-    torch_result = tensorA.float() @ tensorB.float().t()
+    torch_result = tensorAA @ tensorBB
 torch.cuda.synchronize()
 pytorch_time = (time.time() - start_time) / 100
 
@@ -81,17 +85,16 @@ torch.cuda.synchronize()
 # Warmup
 for _ in range(100):
     tensorC.zero_()
-    neoGEMM.neoGemmV2(tensorA, tensorB, tensorC)
+    neoGEMM.neoGemmV1(tensorA, tensorB, tensorC)
 torch.cuda.synchronize()
 
 # Medição real
 start_time_neogemm = time.time()
 for _ in range(100):
-    neoGEMM.neoGemmV2(tensorA, tensorB, tensorC)
+    neoGEMM.neoGemmV1(tensorA, tensorB, tensorC)
 torch.cuda.synchronize()
 neogemm_time = (time.time() - start_time_neogemm) / 100
 
 print(f"Tempo médio: {neogemm_time * 1000:.3f} ms")
 neogemm_tflops = flops / neogemm_time / 1e12
 print(f"**PERFORMANCE: {neogemm_tflops:.2f} TFLOPS**")
-
