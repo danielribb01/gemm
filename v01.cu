@@ -76,8 +76,8 @@ __device__ uint64_t make_smem_desc(bf16* ptr)
     uint32_t addr = static_cast<uint32_t>(__cvta_generic_to_shared(ptr)); //converte um ponteiro da matriz para um ponteiro que aponta para o endereço da SMEM
     uint64_t desc = 0x0000000000000000;
     desc |= matrix_descriptor_encode(addr);
-    desc |= 0x0000004000000000;  // 64  * 2^32
-    desc |= 0x4000000000000000;  // 64  * 2^32
+    desc |= 0x0000004000000000;  // 64 * 2^32 - stride
+    desc |= 0x4000000000000000;  // 2^62 - swizzle
     return desc;
 }
 
