@@ -71,14 +71,6 @@ __device__ static inline uint64_t matrix_descriptor_encode(uint64_t x) {return (
 
 
 
-__device__ uint64_t make_smem_desc(bf16* ptr)
-{
-    uint32_t addr = static_cast<uint32_t>(__cvta_generic_to_shared(ptr)); //converte um ponteiro da matriz para um ponteiro que aponta para o endereço da SMEM
-    uint64_t desc = 0x4000004000000000;
-    desc |= matrix_descriptor_encode(addr);
-    return desc;
-}
-
 // wgmma.fence - ele força uma ordenação de acesso nos registrados entre as operações wgmma.mma_async
 // Apenas os registradores do acumulador e o registrador contendo os fragmentos da matriz A realiza a operação
 
@@ -160,8 +152,8 @@ __host__ static inline CUtensorMap* allocate_and_create_tensor_map(bf16* src, in
 template<int ScaleD, int ScaleA, int ScaleB, int TransA, int TransB>
 __device__ void wgmma64(float d[4][8], bf16* sA, bf16* sB)
 {
-    uint64_t desc_a = 0x4000004000000000 | matrix_descriptor_encode(static_cast<uint32_t>(__cvta_generic_to_shared(&sA[0]));
-    uint64_t desc_b = 0x4000004000000000 | matrix_descriptor_encode(static_cast<uint32_t>(__cvta_generic_to_shared(&sB[0]));
+    uint64_t desc_a = 0x4000004000000000 | (matrix_descriptor_encode(static_cast<uint32_t>(__cvta_generic_to_shared(&sA[0]))));
+    uint64_t desc_b = 0x4000004000000000 | (matrix_descriptor_encode(static_cast<uint32_t>(__cvta_generic_to_shared(&sB[0]))));
     asm volatile(
         "{\n"
         "wgmma.mma_async.sync.aligned.m64n64k16.f32.bf16.bf16 "
