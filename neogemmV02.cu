@@ -1,8 +1,8 @@
 /*
  * Nome do Arquivo: neogemm.cu
  *
- * Autores: Daniel Augusto Ribeiro
- *          Gabriel Ambrosio Valentin
+ * Autores: Gabriel Ambrosio Valentin E Daniel Augusto Ribeiro
+ *          
  * 
  *
  * Versão: 1.0
