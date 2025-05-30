@@ -90,8 +90,55 @@ __device__ void warpgroup_wait()
 }
 
 
+
+// Para usarmos o TMA o hardware requer um tensor map
+// o tensor map ele descreve o layout multi-dimensional do array na GMEM e na SMEM
+// o tensor map é criado usando o cuTensorMapEncode API
+// ele é transferido do host para o device como um parâmetro const kernel(__grid_constant__)
+
+
+// Criar um tensor map requer muitos parâmetros
+// Ponteiro base para um array na global memory, stride de uma linha para outra em bytes
+// o tamanho do buffer na SMEM em número de elementos e etc...
+
+
+// Estrutura recomendada no CUDA GUIDE
+/*
+struct tensormap_params {
+  void* global_address;
+  int rank;
+  uint32_t box_dim[5];
+  uint64_t global_dim[5];
+  size_t global_stride[4];
+  uint32_t element_stride[5];
+};
+*/
+
+template <int BlockMajorSize, int BlockMinorSize>
+void create_tensor_map(CUtensorMap *tma_map, bf16* gmem_ptr, int blocks_height, int blocks_width)
+{
+    void* gmem_address = (void *)gmem_ptr;
+    uint64_t gmem_prob_shape[5] = {(uint64_t)BlockMinorSize * blocks_width, (uint64_t)BlockMajorSize*blocks_height,1,1,1}; // define as dimensões na memmória global
+    uint64_t gmem_prob_stride[5] = {sizeof(bf16), sizeof(bf16) * BlockMinorSize*blocks_width, 0,0,0}; // define os strides na GMEM
+    uint64_t smem_box_shape[5] = {uint32_t(BlockMinorSize), uint32_t(BlockMajorSize),1,1,1}; // define os tiles que vão para a SMEM
+    uint64_t smem_box_stride[5] = {1,1,1,1,1}; // define os strides na SMEM, strides unitários, pois os dados na SMEM ficam contíguos
+
+    CUresult result = cuTensorMapEncodeTiled(
+        tma_map, CU_TENSOR_MAP_DATA_TYPE_BFLOAT16, 2, gmem_address, gmem_prob_shape,
+        gmem_prob_stride + 1, smem_box_shape, smem_box_stride, CU_TENSOR_MAP_INTERLEAVE_NONE,
+        CU_TENSOR_MAP_SWIZZLE_128B, CU_TENSOR_MAP_L2_PROMOTION_NONE, CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE);
+    
+        assert(result == CUDA_SUCCESS);
+
+}
+
+
+
+
+
+
 template<int BM, int BN, int BK, int WGMMA_M, int WGMMA_N, int WGMMA_K, int NUM_THREADS>
-__global__ void __launch_bounds__(NUM_THREADS) gemm(int M, int N, int K, bf16* C, const CUtensorMap* tensorMapA, const CUtensorMap* tensorMapB)
+__global__ void __launch_bounds__(NUM_THREADS) neogemm(int M, int N, int K, bf16* C, const CUtensorMap* tensorMapA, const CUtensorMap* tensorMapB)
 {
     __shared__ alignas(128) bf16 sA[BM * BK]; // tma requer alinhamento de 128 bytes
     __shared__ alignas(128) bf16 sB[BK * BN];// tma requer alinhamento de 128 bytes
@@ -134,7 +181,6 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm(int M, int N, int K, bf16* C
         __syncthreads();
 
         warpgroup_arrive();
-        // D é onde ele acumula os resultados
         wgmma64<1,1,1,0,0>(d, &sA[0], &sB[0]);
         wgmma64<1,1,1,0,0>(d, &sA[WGMMA_K], &sB[WGMMA_K]);
         wgmma64<1,1,1,0,0>(d, &sA[WGMMA_K * 2], &sB[2 * WGMMA_K]);
@@ -146,8 +192,8 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm(int M, int N, int K, bf16* C
 
     {
         int tid = threadIdx.x;
-        int lane = tid % 32; // posição da thread dentro do warp
-        int warp = tid / 32; // pegando o id do warp
+        int lane = tid % 32;
+        int warp = tid / 32;
         uint32_t row = warp*16 + lane / 4;
         bf16 *block_C = C + num_block_n*BN*M + num_block_m*BM;
 
