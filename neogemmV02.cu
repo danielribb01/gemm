@@ -182,10 +182,9 @@ __global__ void __launch_bounds__(NUM_THREADS) gemmkernel(int M, int N, int K, b
     __shared__ alignas(128) bf16 sA[BM * BK]; // tma requer alinhamento de 128 bytes
     __shared__ alignas(128) bf16 sB[BK * BN];// tma requer alinhamento de 128 bytes
 
-    float d[WGMMA_N/16][8];// [64/16][8] - [4][8], registrador dos acumuladores
+    float d[WGMMA_N/16][8] = {};// [64/16][8] - [4][8], registrador dos acumuladores
 
     static_assert(sizeof(d) * 128 == BM * BN * sizeof(float));
-    memset(d, 0, sizeof(d)); //colocar para usar cudamemset
 
     const int num_blocks_k = K / BK;
     int num_block_n = blockIdx.x % (N / BN);
