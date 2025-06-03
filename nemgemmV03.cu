@@ -70,8 +70,8 @@ __device__ void warpgroup_arrive() {
     asm volatile("wgmma.fence.sync.aligned;\n" ::: "memory"); // sync warpgroup ptx instruction
 }
 
-__device__ void cta_commit() {
-    asm volatile("tcgen05.commit.cta_group::1.completion_mechanism.mbarrier::arrive::one.b64;\n" ::: "memory"); // commit mma operations ptx intruction
+__device__ void cta_commit(uint32_t* mma_barrier_addr) {
+    asm volatile("tcgen05.commit.cta_group::1.completion_mechanism.mbarrier::arrive::one.b64 [%0];\n" :: "r"(mma_barrier_addr) : "memory"); // commit mma operations ptx intruction
 }
 
 template <int N>
@@ -85,16 +85,16 @@ __device__ static inline void barrier_alloc(uint32_t* mma_barrier_addr) {
     asm volatile(
         "mbarrier.init.shared::cta.b64 [%0], %1;\n"
         :
-        : "r"(mma_barrier_addr), "n"(constexpr uint32_t 128);
-    )
+        : "r"(mma_barrier_addr), "n"(constexpr uint32_t 128)
+    );
 }
 
 __device__ static inline void att_barrier(uint32_t* mma_barrier_ptr) {
     asm volatile(
         "mbarrier.arrive.shared::cta.b64 [%0]"
         :
-        : "r"(mma_barrier_ptr);
-    )
+        : "r"(mma_barrier_ptr)
+    );
 }
 
 
