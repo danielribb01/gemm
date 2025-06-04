@@ -81,23 +81,25 @@ __device__ static inline uint64_t matrix_descriptor_encode(uint64_t x) {
 
 
 
-__device__ void cta_commit(uint32_t* mma_barrier_addr) {
+__device__ void cta_commit(uint64_t &mma_barrier_addr) {
+    uint32_t mma_barrier_addrr =  static_cast<uint32_t>(__cvta_generic_to_shared(&mma_barrier_addr));
     asm volatile(
         "tcgen05.commit.cta_group::1.mbarrier::arrive::one.b64 [%0];\n" 
-        :: "l"(mma_barrier_addr) : "memory"
+        :: "r"(mma_barrier_addrr) : "memory"
     );
 }
 
-__device__ static inline void barrier_init(uint32_t* mma_barrier_addr) {
+__device__ static inline void barrier_init(uint64_t &mma_barrier_addr) {
+    uint32_t mma_barrier_addrr =  static_cast<uint32_t>(__cvta_generic_to_shared(&mma_barrier_addr));
     asm volatile(
         "mbarrier.init.shared::cta.b64 [%0], %1;\n"
         :
-        : "l"(mma_barrier_addr), "n"(128)
+        : "r"(mma_barrier_addrr), "n"(128)
     );
 }
 
-__device__ static inline void barrier_arrive(uint32_t *mma_barrier_ptr) {
-    uint32_t addr = static_cast<uint32_t>(__cvta_generic_to_shared(mma_barrier_ptr));
+__device__ static inline void barrier_arrive(uint64_t &mma_barrier_ptr) {
+    uint32_t addr = static_cast<uint32_t>(__cvta_generic_to_shared(&mma_barrier_ptr));
     asm volatile(
         "mbarrier.arrive.shared::cta.b64 _,[%0];\n"
         :
@@ -152,12 +154,12 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     __shared__ alignas(128) bf16 sA[BM * BK];
     __shared__ alignas(128) bf16 sB[BK * BN];
     __shared__ alignas(16) uint32_t tmem_base_addr;
-    __shared__ alignas(16) uint32_t mma_barrier_addr;
+    __shared__ alignas(16) uint64_t mma_barrier_addr;
 
 
     // Initialize barriers
     if (tid == 0) {
-        barrier_init(&mma_barrier_addr);
+        barrier_init(mma_barrier_addr);
     }
 
     // Allocate tensor memory
@@ -216,8 +218,8 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
             mma128x256x16<1, 1, 1, 0, 0, 1>(d[0], &sA[3*MMA_K], &sB[3*MMA_K * BN], tmem_base_addr);
         }
         
-        barrier_arrive(&mma_barrier_addr);
-        cta_commit(&mma_barrier_addr);
+        barrier_arrive(mma_barrier_addr);
+        cta_commit(mma_barrier_addr);
     }
     
     int lane = tid % 32;
