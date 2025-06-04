@@ -128,16 +128,14 @@ __device__ void mma128x256x16(float* d, bf16* sA, bf16* sB, uint32_t const &base
 }
 
 // Load accumulator from TMEM to registers using tcgen05.ld
-__device__ void load_tmem_to_registers(float* d, uint32_t const &tmem_base_addr, int offset) {
-    asm volatile(
-        "tcgen05.ld.sync.aligned.32x32b.x1.b32 "
-        "{%0, %1, %2, %3, %4, %5, %6, %7}, "
-        "[%8+%9];\n"
-        : "=f"(d[0]), "=f"(d[1]), "=f"(d[2]), "=f"(d[3]),
-          "=f"(d[4]), "=f"(d[5]), "=f"(d[6]), "=f"(d[7])
-        : "r"(tmem_base_addr), "r"(offset)
-    );
-}
+/*__device__ void load_tmem_to_registers(float &d, uint32_t const &tmem_base_addr) {
+    uint32_t dd =  static_cast<uint32_t>(__cvta_generic_to_shared(d));
+    asm volatile ("tcgen05.ld.sync.aligned.32x32b.x1.b32"
+                "{%0},"
+                 "[%1];\n"
+                :  "=r"(dd)
+                :  "r"(tmem_base_addr));
+}*/
 
 template<int BM, int BN, int BK, int MMA_M, int MMA_N, int MMA_K, int NUM_THREADS>
 __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
@@ -228,7 +226,7 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     bf16 *block_D = D + num_blocks_n * BN * M + num_blocks_m * BM;
 
     // Load accumulator from TMEM
-    load_tmem_to_registers(d[0], tmem_base_addr, 0);
+    //load_tmem_to_registers(d, tmem_base_addr);
 
     for (int m_it = 0; m_it < BM/MMA_M; ++m_it) {
         for (int n_it = 0; n_it < BN/MMA_N; ++n_it) {
