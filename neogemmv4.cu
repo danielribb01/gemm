@@ -83,7 +83,7 @@ __device__ static inline uint64_t matrix_descriptor_encode(uint64_t x) {
 
 __device__ void cta_commit(uint32_t* mma_barrier_addr) {
     asm volatile(
-        "tcgen05.commit.cta_group::1.completion_mechanism.mbarrier::arrive::one.b64 [%0];\n" 
+        "tcgen05.commit.cta_group::1.mbarrier::arrive::one.b64 [%0];\n" 
         :: "l"(mma_barrier_addr) : "memory"
     );
 }
@@ -96,11 +96,12 @@ __device__ static inline void barrier_init(uint32_t* mma_barrier_addr) {
     );
 }
 
-__device__ static inline void barrier_arrive(uint32_t* mma_barrier_ptr) {
+__device__ static inline void barrier_arrive(uint32_t *mma_barrier_ptr) {
+    uint32_t addr = static_cast<uint32_t>(__cvta_generic_to_shared(mma_barrier_ptr));
     asm volatile(
-        "mbarrier.arrive.shared::cta.b64 [%0];\n"
+        "mbarrier.arrive.shared::cta.b64 _,[%0];\n"
         :
-        : "l"(mma_barrier_ptr)
+        : "r"(addr)
     );
 }
 
@@ -125,14 +126,14 @@ __device__ void mma128x256x16(float* d, bf16* sA, bf16* sB, uint32_t const &base
 }
 
 // Load accumulator from TMEM to registers using tcgen05.ld
-__device__ void load_tmem_to_registers(float* d, uint32_t const *tmem_base_addr, int offset) {
+__device__ void load_tmem_to_registers(float* d, uint32_t const &tmem_base_addr, int offset) {
     asm volatile(
-        "tcgen05.ld.sync.aligned.f32.m128n256k16 "
+        "tcgen05.ld.sync.aligned.32x32b.x1.b32 "
         "{%0, %1, %2, %3, %4, %5, %6, %7}, "
         "[%8+%9];\n"
         : "=f"(d[0]), "=f"(d[1]), "=f"(d[2]), "=f"(d[3]),
           "=f"(d[4]), "=f"(d[5]), "=f"(d[6]), "=f"(d[7])
-        : "l"(tmem_base_addr), "r"(offset)
+        : "r"(tmem_base_addr), "r"(offset)
     );
 }
 
@@ -225,7 +226,7 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     bf16 *block_D = D + num_blocks_n * BN * M + num_blocks_m * BM;
 
     // Load accumulator from TMEM
-    load_tmem_to_registers(d[0], &tmem_base_addr, 0);
+    load_tmem_to_registers(d[0], tmem_base_addr, 0);
 
     for (int m_it = 0; m_it < BM/MMA_M; ++m_it) {
         for (int n_it = 0; n_it < BN/MMA_N; ++n_it) {
