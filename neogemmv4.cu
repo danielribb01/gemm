@@ -107,8 +107,22 @@ __device__ static inline void barrier_arrive(uint64_t &mma_barrier_ptr) {
     );
 }
 
+__device__ static inline void load_wait() {
+    asm volatile (
+        "tcgen05.wait::ld.sync.aligned;\n"
+    );
+}
+
+// Load accumulator from TMEM to registers using tcgen05.ld
+__device__ void load_tmem_to_registers(float d[16][8], uint32_t const *tmem_base_addr) {
+    asm volatile ("tcgen05.ld.sync.aligned.32x32b.x1.b32 {%0}, [%1];\n"
+                :  "=f"(d[0][0])
+                :  "r"(tmem_base_addr));
+}
+
+
 template<int ScaleD, int ScaleA, int ScaleB, int TransA, int TransB, int AccD>
-__device__ void mma128x256x16(float* d, bf16* sA, bf16* sB, uint32_t const &base_tmem_ptr) {
+__device__ void mma128x256x16(bf16* sA, bf16* sB, uint32_t const &base_tmem_ptr) {
     uint64_t desc_a = 0x4000004000000000 | 
         (matrix_descriptor_encode(static_cast<uint64_t>(__cvta_generic_to_shared(sA))));
     uint64_t desc_b = 0x4000004000000000 | 
@@ -126,16 +140,6 @@ __device__ void mma128x256x16(float* d, bf16* sA, bf16* sB, uint32_t const &base
         : "r"(base_tmem_ptr), "l"(desc_a), "l"(desc_b), "r"(instruction_desc), "r"(AccD),
           "r"(mask[0]), "r"(mask[1]), "r"(mask[2]), "r"(mask[3]));
 }
-
-// Load accumulator from TMEM to registers using tcgen05.ld
-/*__device__ void load_tmem_to_registers(float &d, uint32_t const &tmem_base_addr) {
-    uint32_t dd =  static_cast<uint32_t>(__cvta_generic_to_shared(d));
-    asm volatile ("tcgen05.ld.sync.aligned.32x32b.x1.b32"
-                "{%0},"
-                 "[%1];\n"
-                :  "=r"(dd)
-                :  "r"(tmem_base_addr));
-}*/
 
 template<int BM, int BN, int BK, int MMA_M, int MMA_N, int MMA_K, int NUM_THREADS>
 __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
@@ -210,10 +214,10 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
         
         if (tid == 0) {
             // Perform MMA operations for different K iterations
-            mma128x256x16<1, 1, 1, 0, 0, 0>(d[0], &sA[0], &sB[0], tmem_base_addr);
-            mma128x256x16<1, 1, 1, 0, 0, 1>(d[0], &sA[MMA_K], &sB[MMA_K * BN], tmem_base_addr);
-            mma128x256x16<1, 1, 1, 0, 0, 1>(d[0], &sA[2*MMA_K], &sB[2*MMA_K * BN], tmem_base_addr);
-            mma128x256x16<1, 1, 1, 0, 0, 1>(d[0], &sA[3*MMA_K], &sB[3*MMA_K * BN], tmem_base_addr);
+            mma128x256x16<1, 1, 1, 0, 0, 0>(&sA[0], &sB[0], tmem_base_addr);
+            mma128x256x16<1, 1, 1, 0, 0, 1>(&sA[MMA_K], &sB[MMA_K * BN], tmem_base_addr);
+            mma128x256x16<1, 1, 1, 0, 0, 1>(&sA[2*MMA_K], &sB[2*MMA_K * BN], tmem_base_addr);
+            mma128x256x16<1, 1, 1, 0, 0, 1>(&sA[3*MMA_K], &sB[3*MMA_K * BN], tmem_base_addr);
         }
         
         barrier_arrive(mma_barrier_addr);
@@ -226,7 +230,11 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     bf16 *block_D = D + num_blocks_n * BN * M + num_blocks_m * BM;
 
     // Load accumulator from TMEM
-    //load_tmem_to_registers(d, tmem_base_addr);
+    if(warp == 0) {
+        load_tmem_to_registers(d, &tmem_base_addr);
+    }
+    load_wait();
+
 
     for (int m_it = 0; m_it < BM/MMA_M; ++m_it) {
         for (int n_it = 0; n_it < BN/MMA_N; ++n_it) {
