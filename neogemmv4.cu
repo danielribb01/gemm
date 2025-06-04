@@ -79,9 +79,7 @@ __device__ static inline uint64_t matrix_descriptor_encode(uint64_t x) {
     return (((x) & 0x3FFFF) >> 0x4); 
 }
 
-__device__ void warpgroup_arrive() {
-   asm volatile("tcgen05.fence.sync.aligned;\n" ::: "memory");
-}
+
 
 __device__ void cta_commit(uint32_t* mma_barrier_addr) {
     asm volatile(
@@ -89,12 +87,6 @@ __device__ void cta_commit(uint32_t* mma_barrier_addr) {
         :: "l"(mma_barrier_addr) : "memory"
     );
 }
-
-template <int N>
-__device__ void warpgroup_wait() {
-   asm volatile("tcgen05.wait_group.sync.aligned %0;\n" :: "n"(N) : "memory");
-}
-
 
 __device__ static inline void barrier_init(uint32_t* mma_barrier_addr) {
     asm volatile(
@@ -113,33 +105,27 @@ __device__ static inline void barrier_arrive(uint32_t* mma_barrier_ptr) {
 }
 
 template<int ScaleD, int ScaleA, int ScaleB, int TransA, int TransB, int AccD>
-__device__ void mma128x256x16(float* d, bf16* sA, bf16* sB, uint32_t* base_tmem_ptr) {
-    uint64_t desc_a = 0x4000004000000000ULL | 
+__device__ void mma128x256x16(float* d, bf16* sA, bf16* sB, uint32_t const &base_tmem_ptr) {
+    uint64_t desc_a = 0x4000004000000000 | 
         (matrix_descriptor_encode(static_cast<uint64_t>(__cvta_generic_to_shared(sA))));
-    uint64_t desc_b = 0x4000004000000000ULL | 
+    uint64_t desc_b = 0x4000004000000000 | 
         (matrix_descriptor_encode(static_cast<uint64_t>(__cvta_generic_to_shared(sB))));
     
     constexpr uint32_t instruction_desc = 0x084004A0;
     constexpr uint32_t mask[4] = {0, 0, 0, 0};
-    
-    asm volatile( 
-        "{\n"
-        "tcgen05.mma.cta_group::1.kind::f16 "
-        "[%0], "     // d-tmem
-        "%1, "       // a-desc
-        "%2, "       // b-desc
-        "%3, "       // idesc
-        "{%4, %5, %6, %7}, " // disable-output-lane
-        "%8;\n"      // enable-input-d
-        "}\n" 
+      asm volatile(
+        "{\n\t"
+        ".reg .pred p;\n\t"
+        "setp.ne.b32 p, %4, 0;\n\t"
+        "tcgen05.mma.cta_group::1.kind::f16 [%0], %1, %2, %3, {%5, %6, %7, %8}, p; \n\t"
+        "}\n"
         :
-        : "l"(base_tmem_ptr), "l"(desc_a), "l"(desc_b), "n"(instruction_desc),
-          "n"(mask[0]), "n"(mask[1]), "n"(mask[2]), "n"(mask[3]), "n"(AccD)
-    );
+        : "r"(base_tmem_ptr), "l"(desc_a), "l"(desc_b), "r"(instruction_desc), "r"(AccD),
+          "r"(mask[0]), "r"(mask[1]), "r"(mask[2]), "r"(mask[3]));
 }
 
 // Load accumulator from TMEM to registers using tcgen05.ld
-__device__ void load_tmem_to_registers(float* d, uint32_t* tmem_base_addr, int offset) {
+__device__ void load_tmem_to_registers(float* d, uint32_t const *tmem_base_addr, int offset) {
     asm volatile(
         "tcgen05.ld.sync.aligned.f32.m128n256k16 "
         "{%0, %1, %2, %3, %4, %5, %6, %7}, "
@@ -166,6 +152,7 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     __shared__ alignas(128) bf16 sB[BK * BN];
     __shared__ alignas(16) uint32_t tmem_base_addr;
     __shared__ alignas(16) uint32_t mma_barrier_addr;
+
 
     // Initialize barriers
     if (tid == 0) {
@@ -218,23 +205,19 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
         barB.wait(std::move(tokenB));
         __syncthreads();
 
-        // Warpgroup MMA operations
-        warpgroup_arrive();
         
-        if (warp == 0 && tid == 0) {
+        
+        if (tid == 0) {
             // Perform MMA operations for different K iterations
-            mma128x256x16<1, 1, 1, 0, 0, 0>(d[0], &sA[0], &sB[0], &tmem_base_addr);
-            mma128x256x16<1, 1, 1, 0, 0, 1>(d[0], &sA[MMA_K], &sB[MMA_K * BN], &tmem_base_addr);
-            mma128x256x16<1, 1, 1, 0, 0, 1>(d[0], &sA[2*MMA_K], &sB[2*MMA_K * BN], &tmem_base_addr);
-            mma128x256x16<1, 1, 1, 0, 0, 1>(d[0], &sA[3*MMA_K], &sB[3*MMA_K * BN], &tmem_base_addr);
+            mma128x256x16<1, 1, 1, 0, 0, 0>(d[0], &sA[0], &sB[0], tmem_base_addr);
+            mma128x256x16<1, 1, 1, 0, 0, 1>(d[0], &sA[MMA_K], &sB[MMA_K * BN], tmem_base_addr);
+            mma128x256x16<1, 1, 1, 0, 0, 1>(d[0], &sA[2*MMA_K], &sB[2*MMA_K * BN], tmem_base_addr);
+            mma128x256x16<1, 1, 1, 0, 0, 1>(d[0], &sA[3*MMA_K], &sB[3*MMA_K * BN], tmem_base_addr);
         }
         
         barrier_arrive(&mma_barrier_addr);
         cta_commit(&mma_barrier_addr);
     }
-
-    // Load results from TMEM to registers and write to global memory
-    warpgroup_wait<0>();
     
     int lane = tid % 32;
     uint32_t row = warp * 16 + lane / 4;
