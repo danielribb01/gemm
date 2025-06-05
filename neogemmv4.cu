@@ -160,7 +160,7 @@ __device__ void mma128x256x16(bf16* sA, bf16* sB, uint32_t const &base_tmem_ptr)
 template<int BM, int BN, int BK, int MMA_M, int MMA_N, int MMA_K, int NUM_THREADS>
 __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     int M, int N, int K, 
-    bf16* C, bf16* D,
+    bf16* C,
     const CUtensorMap* tensorMapA, 
     const CUtensorMap* tensorMapB,
     float alpha, float beta
@@ -243,7 +243,6 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     int lane = tid % 32;
     uint32_t row = warp * 16 + lane / 4;
     bf16 *block_C = C + num_blocks_n * BN * M + num_blocks_m * BM;
-    bf16 *block_D = D + num_blocks_n * BN * M + num_blocks_m * BM;
 
     // Load accumulator from TMEM
     if(warp == 0) {
@@ -264,26 +263,15 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
                 
                 #define IDX(i, j) ((j + n_it*MMA_N)*M + ((i) + m_it*MMA_M))
                 
-                // Read C matrix values
-                float c_vals[8];
-                c_vals[0] = __bfloat162float(block_C[IDX(row, col)]);
-                c_vals[1] = __bfloat162float(block_C[IDX(row, col+1)]);
-                c_vals[2] = __bfloat162float(block_C[IDX(row+8, col)]);
-                c_vals[3] = __bfloat162float(block_C[IDX(row+8, col+1)]);
-                c_vals[4] = __bfloat162float(block_C[IDX(row, col+8)]);
-                c_vals[5] = __bfloat162float(block_C[IDX(row, col+9)]);
-                c_vals[6] = __bfloat162float(block_C[IDX(row+8, col+8)]);
-                c_vals[7] = __bfloat162float(block_C[IDX(row+8, col+9)]);
-                
                 // Apply alpha and beta scaling: D = alpha * A * B + beta * C
-                block_D[IDX(row, col)] = __float2bfloat16(alpha * d[w] + beta * c_vals[0]);
-                block_D[IDX(row, col+1)] = __float2bfloat16(alpha * d[w] + beta * c_vals[1]);
-                block_D[IDX(row+8, col)] = __float2bfloat16(alpha * d[w] + beta * c_vals[2]);
-                block_D[IDX(row+8, col+1)] = __float2bfloat16(alpha * d[w] + beta * c_vals[3]);
-                block_D[IDX(row, col+8)] = __float2bfloat16(alpha * d[w] + beta * c_vals[4]);
-                block_D[IDX(row, col+9)] = __float2bfloat16(alpha * d[w] + beta * c_vals[5]);
-                block_D[IDX(row+8, col+8)] = __float2bfloat16(alpha * d[w] + beta * c_vals[6]);
-                block_D[IDX(row+8, col+9)] = __float2bfloat16(alpha * d[w] + beta * c_vals[7]);
+                block_D[IDX(row, col)] = __float2bfloat16(d[w]);
+                block_D[IDX(row, col+1)] = __float2bfloat16(d[w]);
+                block_D[IDX(row+8, col)] = __float2bfloat16(d[w]);
+                block_D[IDX(row+8, col+1)] = __float2bfloat16(d[w]);
+                block_D[IDX(row, col+8)] = __float2bfloat16(d[w]);
+                block_D[IDX(row, col+9)] = __float2bfloat16(d[w]);
+                block_D[IDX(row+8, col+8)] = __float2bfloat16(d[w]);
+                block_D[IDX(row+8, col+9)] = __float2bfloat16(d[w]);
                 
                 #undef IDX
             }
@@ -291,8 +279,7 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     }
 }
 
-void neoGemmV1(torch::Tensor A, torch::Tensor B, torch::Tensor C, torch::Tensor D, 
-               float alpha = 1.0f, float beta = 0.0f) {
+void neoGemmV1(torch::Tensor A, torch::Tensor B, torch::Tensor C) {
     int M = A.size(0); // A -> MxK
     int K = A.size(1);
     int N = B.size(0); // B -> NxK
@@ -301,7 +288,6 @@ void neoGemmV1(torch::Tensor A, torch::Tensor B, torch::Tensor C, torch::Tensor 
     bf16* bf16_data_ptr_A = reinterpret_cast<bf16*>(A.data_ptr<at::BFloat16>());
     bf16* bf16_data_ptr_B = reinterpret_cast<bf16*>(B.data_ptr<at::BFloat16>());
     bf16* bf16_data_ptr_C = reinterpret_cast<bf16*>(C.data_ptr<at::BFloat16>());
-    bf16* bf16_data_ptr_D = reinterpret_cast<bf16*>(D.data_ptr<at::BFloat16>());
 
     // Tile sizes
     constexpr int BM = 64;
@@ -334,8 +320,7 @@ void neoGemmV1(torch::Tensor A, torch::Tensor B, torch::Tensor C, torch::Tensor 
 
     // Launch kernel
     gemm_kernel<BM, BN, BK, 64, 64, 16, NUM_THREADS><<<grid, block>>>(
-        M, N, K, bf16_data_ptr_C, bf16_data_ptr_D, d_tma_map_A, d_tma_map_B, alpha, beta
-    );
+        M, N, K, bf16_data_ptr_C, d_tma_map_A, d_tma_map_B);
 
     // Check for kernel launch errors
     cudaError_t err = cudaGetLastError();
@@ -349,6 +334,5 @@ namespace py = pybind11;
 // Python binding
 PYBIND11_MODULE(neoGEMM, m) {
     m.def("neoGemmV1", &neoGemmV1, "Optimized GEMM with TMA and tcgen05",
-          py::arg("A"), py::arg("B"), py::arg("C"), py::arg("D"),
-          py::arg("alpha") = 1.0f, py::arg("beta") = 0.0f);
+          py::arg("A"), py::arg("B"), py::arg("C"));
 }
