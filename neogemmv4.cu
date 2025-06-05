@@ -68,12 +68,28 @@ __host__ static inline CUtensorMap* allocate_and_create_tensor_map(bf16* data_pt
 }
 
 __device__ static inline void tmem_alloc_maxColumns(uint32_t* tmem_base_addr) {
+    uint32_t tmem_ptr = static_cast<uint32_t>(__cvta_generic_to_shared(tmem_base_addr));
+    static constexpr int maxCollums = 32;
     asm volatile (
         "tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32 [%0], %1;\n"
         :
-        : "l"(tmem_base_addr), "n"(512)
+        : "r"(tmem_ptr), "r"(maxCollums)
     );
 }
+
+__device__ static inline void dealloc_tmem(uint32_t tmem_base_addr) {
+    asm volatile(
+        "{\n\t"
+      "tcgen05.dealloc.cta_group::1.sync.aligned.b32  %0, %1; \n\t"
+      "}"
+      :
+      : "r"(tmem_base_addr), "r"(512));
+}
+
+__device__ static inline void release_lock() {
+    asm volatile("tcgen05.relinquish_alloc_permit.cta_group::1.sync.aligned;\n" ::);
+}
+
 
 __device__ static inline uint64_t matrix_descriptor_encode(uint64_t x) { 
     return (((x) & 0x3FFFF) >> 0x4); 
@@ -165,7 +181,7 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     }
 
     // Allocate tensor memory
-    if (warp == 0 && tid == 0) {
+    if (warp == 0) {
         tmem_alloc_maxColumns(&tmem_base_addr);
     }
     __syncthreads();
@@ -234,6 +250,11 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
         load_tmem_to_registers(d, tmem_base_addr);
     }
     load_wait();
+
+    if(warp == 0) {
+        release_lock();
+        dealloc_tmem(tmem_base_addr);
+    }
 
 
     for (int m_it = 0; m_it < BM/MMA_M; ++m_it) {
