@@ -144,7 +144,7 @@ __device__ void mma128x256x16(bf16* sA, bf16* sB, uint32_t const &base_tmem_ptr)
     uint64_t desc_b = 0x4000004000000000 | 
         (matrix_descriptor_encode(static_cast<uint64_t>(__cvta_generic_to_shared(sB))));
     
-    constexpr uint32_t instruction_desc = 0x084004A0;
+    constexpr uint32_t instruction_desc = 0x04100490;
     constexpr uint32_t mask[4] = {0, 0, 0, 0};
       asm volatile(
         "{\n\t"
@@ -169,8 +169,8 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     int warp = tid / 32;
 
     // Shared memory buffers - 128-byte aligned
-    __shared__ alignas(128) bf16 sA[BM ];
-    __shared__ alignas(128) bf16 sB[BK ];
+    __shared__ alignas(128) bf16 sA[BM * BK];
+    __shared__ alignas(128) bf16 sB[BK * BK];
     __shared__ alignas(16) uint32_t tmem_base_addr;
     __shared__ alignas(16) uint64_t mma_barrier_addr;
 
@@ -304,8 +304,8 @@ void neoGemmV1(torch::Tensor A, torch::Tensor B, torch::Tensor C, torch::Tensor 
     bf16* bf16_data_ptr_D = reinterpret_cast<bf16*>(D.data_ptr<at::BFloat16>());
 
     // Tile sizes
-    constexpr int BM = 128;
-    constexpr int BN = 256;
+    constexpr int BM = 64;
+    constexpr int BN = 64;
     constexpr int BK = 64;
 
     // Check if we need to reallocate TMA maps
@@ -333,7 +333,7 @@ void neoGemmV1(torch::Tensor A, torch::Tensor B, torch::Tensor C, torch::Tensor 
     dim3 block(NUM_THREADS);
 
     // Launch kernel
-    gemm_kernel<BM, BN, BK, 128, 256, 16, NUM_THREADS><<<grid, block>>>(
+    gemm_kernel<BM, BN, BK, 64, 64, 16, NUM_THREADS><<<grid, block>>>(
         M, N, K, bf16_data_ptr_C, bf16_data_ptr_D, d_tma_map_A, d_tma_map_B, alpha, beta
     );
 
