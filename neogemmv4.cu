@@ -114,9 +114,9 @@ __device__ static inline void load_wait() {
 }
 
 // Load accumulator from TMEM to registers using tcgen05.ld
-__device__ void load_tmem_to_registers(float d[16][8], uint32_t const *tmem_base_addr) {
+__device__ void load_tmem_to_registers(float d[16], uint32_t const &tmem_base_addr) {
     asm volatile ("tcgen05.ld.sync.aligned.32x32b.x1.b32 {%0}, [%1];\n"
-                :  "=f"(d[0][0])
+                :  "=f"(d[0])
                 :  "r"(tmem_base_addr));
 }
 
@@ -153,8 +153,8 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     int warp = tid / 32;
 
     // Shared memory buffers - 128-byte aligned
-    __shared__ alignas(128) bf16 sA[BM * BK];
-    __shared__ alignas(128) bf16 sB[BK * BN];
+    __shared__ alignas(128) bf16 sA[BM ];
+    __shared__ alignas(128) bf16 sB[BK ];
     __shared__ alignas(16) uint32_t tmem_base_addr;
     __shared__ alignas(16) uint64_t mma_barrier_addr;
 
@@ -171,7 +171,7 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     __syncthreads();
 
     // Output accumulator
-    float d[MMA_N/16][8] = {};
+    float d[MMA_N/16] = {};
 
     // Block indices
     const int num_blocks_k = K / BK;
@@ -231,7 +231,7 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
 
     // Load accumulator from TMEM
     if(warp == 0) {
-        load_tmem_to_registers(d, &tmem_base_addr);
+        load_tmem_to_registers(d, tmem_base_addr);
     }
     load_wait();
 
@@ -255,14 +255,14 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
                 c_vals[7] = __bfloat162float(block_C[IDX(row+8, col+9)]);
                 
                 // Apply alpha and beta scaling: D = alpha * A * B + beta * C
-                block_D[IDX(row, col)] = __float2bfloat16(alpha * d[w][0] + beta * c_vals[0]);
-                block_D[IDX(row, col+1)] = __float2bfloat16(alpha * d[w][1] + beta * c_vals[1]);
-                block_D[IDX(row+8, col)] = __float2bfloat16(alpha * d[w][2] + beta * c_vals[2]);
-                block_D[IDX(row+8, col+1)] = __float2bfloat16(alpha * d[w][3] + beta * c_vals[3]);
-                block_D[IDX(row, col+8)] = __float2bfloat16(alpha * d[w][4] + beta * c_vals[4]);
-                block_D[IDX(row, col+9)] = __float2bfloat16(alpha * d[w][5] + beta * c_vals[5]);
-                block_D[IDX(row+8, col+8)] = __float2bfloat16(alpha * d[w][6] + beta * c_vals[6]);
-                block_D[IDX(row+8, col+9)] = __float2bfloat16(alpha * d[w][7] + beta * c_vals[7]);
+                block_D[IDX(row, col)] = __float2bfloat16(alpha * d[w] + beta * c_vals[0]);
+                block_D[IDX(row, col+1)] = __float2bfloat16(alpha * d[w] + beta * c_vals[1]);
+                block_D[IDX(row+8, col)] = __float2bfloat16(alpha * d[w] + beta * c_vals[2]);
+                block_D[IDX(row+8, col+1)] = __float2bfloat16(alpha * d[w] + beta * c_vals[3]);
+                block_D[IDX(row, col+8)] = __float2bfloat16(alpha * d[w] + beta * c_vals[4]);
+                block_D[IDX(row, col+9)] = __float2bfloat16(alpha * d[w] + beta * c_vals[5]);
+                block_D[IDX(row+8, col+8)] = __float2bfloat16(alpha * d[w] + beta * c_vals[6]);
+                block_D[IDX(row+8, col+9)] = __float2bfloat16(alpha * d[w] + beta * c_vals[7]);
                 
                 #undef IDX
             }
