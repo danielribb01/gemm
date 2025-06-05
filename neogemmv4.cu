@@ -137,7 +137,7 @@ __device__ void load_tmem_to_registers(float d[16], uint32_t const &tmem_base_ad
 }
 
 
-template<int ScaleD, int ScaleA, int ScaleB, int TransA, int TransB, int AccD>
+template<int ScaleD, int ScaleA, int ScaleB, int TransA, int TransB, uint8_t ScaleOut>
 __device__ void mma128x256x16(bf16* sA, bf16* sB, uint32_t const &base_tmem_ptr) {
     uint64_t desc_a = 0x4000004000000000 | 
         (matrix_descriptor_encode(static_cast<uint64_t>(__cvta_generic_to_shared(sA))));
@@ -153,7 +153,7 @@ __device__ void mma128x256x16(bf16* sA, bf16* sB, uint32_t const &base_tmem_ptr)
         "tcgen05.mma.cta_group::1.kind::f16 [%0], %1, %2, %3, {%5, %6, %7, %8}, p; \n\t"
         "}\n"
         :
-        : "r"(base_tmem_ptr), "l"(desc_a), "l"(desc_b), "r"(instruction_desc), "r"(AccD),
+        : "r"(base_tmem_ptr), "l"(desc_a), "l"(desc_b), "r"(instruction_desc), "r"(ScaleOut),
           "r"(mask[0]), "r"(mask[1]), "r"(mask[2]), "r"(mask[3]));
 }
 
