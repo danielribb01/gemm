@@ -128,7 +128,22 @@ __device__ static inline void load_wait() {
 }
 
 // Load accumulator from TMEM to registers using tcgen05.ld
-__device__ void load_tmem_to_registers(float d[64][64], uint32_t const &tmem_base_addr) {
+__device__ void load_tmem_to_registers( uint32_t& dst00, uint32_t& dst01, uint32_t& dst02, uint32_t& dst03,
+                                        uint32_t& dst04, uint32_t& dst05, uint32_t& dst06, uint32_t& dst07,
+                                        uint32_t& dst08, uint32_t& dst09, uint32_t& dst10, uint32_t& dst11,
+                                        uint32_t& dst12, uint32_t& dst13, uint32_t& dst14, uint32_t& dst15,
+                                        uint32_t& dst16, uint32_t& dst17, uint32_t& dst18, uint32_t& dst19,
+                                        uint32_t& dst20, uint32_t& dst21, uint32_t& dst22, uint32_t& dst23,
+                                        uint32_t& dst24, uint32_t& dst25, uint32_t& dst26, uint32_t& dst27,
+                                        uint32_t& dst28, uint32_t& dst29, uint32_t& dst30, uint32_t& dst31,
+                                        uint32_t& dst32, uint32_t& dst33, uint32_t& dst34, uint32_t& dst35,
+                                        uint32_t& dst36, uint32_t& dst37, uint32_t& dst38, uint32_t& dst39,
+                                        uint32_t& dst40, uint32_t& dst41, uint32_t& dst42, uint32_t& dst43,
+                                        uint32_t& dst44, uint32_t& dst45, uint32_t& dst46, uint32_t& dst47,
+                                        uint32_t& dst48, uint32_t& dst49, uint32_t& dst50, uint32_t& dst51,
+                                        uint32_t& dst52, uint32_t& dst53, uint32_t& dst54, uint32_t& dst55,
+                                        uint32_t& dst56, uint32_t& dst57, uint32_t& dst58, uint32_t& dst59,
+                                        uint32_t& dst60, uint32_t& dst61, uint32_t& dst62, uint32_t& dst63, uint32_t const &tmem_base_addr) {
     asm volatile (" {\n"
                   " tcgen05.ld.sync.aligned.32x32b.x64.b32 "
                   "{%0, %1, %2, %3, "
@@ -149,64 +164,24 @@ __device__ void load_tmem_to_registers(float d[64][64], uint32_t const &tmem_bas
                   " %60, %61, %62, %63}, "              
                   "[%64];\n"
                   "}\n"
-                : "=f"(d[0][0]), "=f"(d[0][1]), "=f"(d[0][2]), "=f"(d[0][3]),
-                  "=f"(d[0][4]), "=f"(d[0][5]), "=f"(d[0][6]), "=f"(d[0][7]),
-                  "=f"(d[0][8]), "=f"(d[0][9]), "=f"(d[0][10]), "=f"(d[0][11]),
-                  "=f"(d[0][12]), "=f"(d[0][13]), "=f"(d[0][14]), "=f"(d[0][15]),
-                  "=f"(d[0][16]), "=f"(d[0][17]), "=f"(d[0][18]), "=f"(d[0][19]),
-                  "=f"(d[0][20]), "=f"(d[0][21]), "=f"(d[0][22]), "=f"(d[0][23]),
-                  "=f"(d[0][24]), "=f"(d[0][25]), "=f"(d[0][26]), "=f"(d[0][27]),
-                  "=f"(d[0][28]), "=f"(d[0][29]), "=f"(d[0][30]), "=f"(d[0][31]),
-                  "=f"(d[0][32]), "=f"(d[0][33]), "=f"(d[0][34]), "=f"(d[0][35]),
-                  "=f"(d[0][36]), "=f"(d[0][37]), "=f"(d[0][38]), "=f"(d[0][39]),
-                  "=f"(d[0][40]), "=f"(d[0][41]), "=f"(d[0][42]), "=f"(d[0][43]),
-                  "=f"(d[0][44]), "=f"(d[0][45]), "=f"(d[0][46]), "=f"(d[0][47]),
-                  "=f"(d[0][48]), "=f"(d[0][49]), "=f"(d[0][50]), "=f"(d[0][51]),
-                  "=f"(d[0][52]), "=f"(d[0][53]), "=f"(d[0][54]), "=f"(d[0][55]),
-                  "=f"(d[0][56]), "=f"(d[0][57]), "=f"(d[0][58]), "=f"(d[0][59]),
-                  "=f"(d[0][60]), "=f"(d[0][61]), "=f"(d[0][62]), "=f"(d[0][63])
+                : "=r"(dst00), "=r"(dst01), "=r"(dst02), "=r"(dst03),
+                  "=r"(dst04), "=r"(dst05), "=r"(dst06), "=r"(dst07),
+                  "=r"(dst08), "=r"(dst09), "=r"(dst10), "=r"(dst11),
+                  "=r"(dst12), "=r"(dst13), "=r"(dst14), "=r"(dst15),
+                  "=r"(dst16), "=r"(dst17), "=r"(dst18), "=r"(dst19),
+                  "=r"(dst20), "=r"(dst21), "=r"(dst22), "=r"(dst23),
+                  "=r"(dst24), "=r"(dst25), "=r"(dst26), "=r"(dst27),
+                  "=r"(dst28), "=r"(dst29), "=r"(dst30), "=r"(dst31),
+                  "=r"(dst32), "=r"(dst33), "=r"(dst34), "=r"(dst35),
+                  "=r"(dst36), "=r"(dst37), "=r"(dst38), "=r"(dst39),
+                  "=r"(dst40), "=r"(dst41), "=r"(dst42), "=r"(dst43),
+                  "=r"(dst44), "=r"(dst45), "=r"(dst46), "=r"(dst47),
+                  "=r"(dst48), "=r"(dst49), "=r"(dst50), "=r"(dst51),
+                  "=r"(dst52), "=r"(dst53), "=r"(dst54), "=r"(dst55),
+                  "=r"(dst56), "=r"(dst57), "=r"(dst58), "=r"(dst59),
+                  "=r"(dst60), "=r"(dst61), "=r"(dst62), "=r"(dst63)
                 :  "r"(tmem_base_addr));
-                
-    load_wait();
-    
-    uint32_t tmem_offset_addr = tmem_base_addr + 0x00200000;
-    asm volatile (" {\n"
-                  " tcgen05.ld.sync.aligned.32x32b.x64.b32 "
-                  "{%0, %1, %2, %3, "
-                  " %4, %5, %6, %7, "
-                  " %8, %9, %10, %11, "
-                  " %12, %13, %14, %15, "
-                  " %16, %17, %18, %19, "
-                  " %20, %21, %22, %23, "
-                  " %24, %25, %26, %27, "
-                  " %28, %29, %30, %31, "
-                  " %32, %33, %34, %35, "
-                  " %36, %37, %38, %39, "
-                  " %40, %41, %42, %43, "
-                  " %44, %45, %46, %47, "
-                  " %48, %49, %50, %51, "
-                  " %52, %53, %54, %55, "
-                  " %56, %57, %58, %59, "
-                  " %60, %61, %62, %63}, "              
-                  "[%64];\n"
-                  "}\n"
-                : "=f"(d[32][0]), "=f"(d[32][1]), "=f"(d[32][2]), "=f"(d[32][3]),
-                  "=f"(d[32][4]), "=f"(d[32][5]), "=f"(d[32][6]), "=f"(d[32][7]),
-                  "=f"(d[32][8]), "=f"(d[32][9]), "=f"(d[32][10]), "=f"(d[32][11]),
-                  "=f"(d[32][12]), "=f"(d[32][13]), "=f"(d[32][14]), "=f"(d[32][15]),
-                  "=f"(d[32][16]), "=f"(d[32][17]), "=f"(d[32][18]), "=f"(d[32][19]),
-                  "=f"(d[32][20]), "=f"(d[32][21]), "=f"(d[32][22]), "=f"(d[32][23]),
-                  "=f"(d[32][24]), "=f"(d[32][25]), "=f"(d[32][26]), "=f"(d[32][27]),
-                  "=f"(d[32][28]), "=f"(d[32][29]), "=f"(d[32][30]), "=f"(d[32][31]),
-                  "=f"(d[32][32]), "=f"(d[32][33]), "=f"(d[32][34]), "=f"(d[32][35]),
-                  "=f"(d[32][36]), "=f"(d[32][37]), "=f"(d[32][38]), "=f"(d[32][39]),
-                  "=f"(d[32][40]), "=f"(d[32][41]), "=f"(d[32][42]), "=f"(d[32][43]),
-                  "=f"(d[32][44]), "=f"(d[32][45]), "=f"(d[32][46]), "=f"(d[32][47]),
-                  "=f"(d[32][48]), "=f"(d[32][49]), "=f"(d[32][50]), "=f"(d[32][51]),
-                  "=f"(d[32][52]), "=f"(d[32][53]), "=f"(d[32][54]), "=f"(d[32][55]),
-                  "=f"(d[32][56]), "=f"(d[32][57]), "=f"(d[32][58]), "=f"(d[32][59]),
-                  "=f"(d[32][60]), "=f"(d[32][61]), "=f"(d[32][62]), "=f"(d[32][63])
-                :  "r"(tmem_offset_addr));
+
 }
 
 
@@ -216,7 +191,7 @@ __device__ void mma64x64x16(bf16* sA, bf16* sB, uint32_t const &base_tmem_ptr) {
         (matrix_descriptor_encode(static_cast<uint64_t>(__cvta_generic_to_shared(sA))));
     uint64_t desc_b = 0x4000004000000000 | 
         (matrix_descriptor_encode(static_cast<uint64_t>(__cvta_generic_to_shared(sB))));
-    
+    uint32_t Acc_addr = reinterpret_cast<uint32_t>(&Acc);
     constexpr uint32_t instruction_desc = 0x04100490;
     constexpr uint32_t mask[4] = {0, 0, 0, 0};
       asm volatile(
@@ -226,7 +201,7 @@ __device__ void mma64x64x16(bf16* sA, bf16* sB, uint32_t const &base_tmem_ptr) {
         "tcgen05.mma.cta_group::1.kind::f16 [%0], %1, %2, %3, {%5, %6, %7, %8}, p; \n\t"
         "}\n"
         :
-        : "r"(base_tmem_ptr), "l"(desc_a), "l"(desc_b), "r"(instruction_desc), "r"(Acc),
+        : "r"(base_tmem_ptr), "l"(desc_a), "l"(desc_b), "r"(instruction_desc), "r"(Acc_addr),
           "r"(mask[0]), "r"(mask[1]), "r"(mask[2]), "r"(mask[3]));
 }
 
@@ -308,10 +283,46 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
 
     // Load accumulator from TMEM
     if(warp == 0) {
-        load_tmem_to_registers(d, tmem_base_addr);
+        load_tmem_to_registers((uint32_t&)d[0][0], (uint32_t&)d[0][1], (uint32_t&)d[0][2], (uint32_t&)d[0][3],
+                                (uint32_t&)d[0][4], (uint32_t&)d[0][5], (uint32_t&)d[0][6], (uint32_t&)d[0][7],
+                                (uint32_t&)d[0][8], (uint32_t&)d[0][9], (uint32_t&)d[0][10], (uint32_t&)d[0][11],
+                                (uint32_t&)d[0][12], (uint32_t&)d[0][13], (uint32_t&)d[0][14], (uint32_t&)d[0][15],
+                                (uint32_t&)d[0][16], (uint32_t&)d[0][17], (uint32_t&)d[0][18], (uint32_t&)d[0][19],
+                                (uint32_t&)d[0][20], (uint32_t&)d[0][21], (uint32_t&)d[0][22], (uint32_t&)d[0][23],
+                                (uint32_t&)d[0][24], (uint32_t&)d[0][25], (uint32_t&)d[0][26], (uint32_t&)d[0][27],
+                                (uint32_t&)d[0][28], (uint32_t&)d[0][29], (uint32_t&)d[0][30], (uint32_t&)d[0][31],
+                                (uint32_t&)d[0][32], (uint32_t&)d[0][33], (uint32_t&)d[0][34], (uint32_t&)d[0][35],
+                                (uint32_t&)d[0][36], (uint32_t&)d[0][37], (uint32_t&)d[0][38], (uint32_t&)d[0][39],
+                                (uint32_t&)d[0][40], (uint32_t&)d[0][41], (uint32_t&)d[0][42], (uint32_t&)d[0][43],
+                                (uint32_t&)d[0][44], (uint32_t&)d[0][45], (uint32_t&)d[0][46], (uint32_t&)d[0][47],
+                                (uint32_t&)d[0][48], (uint32_t&)d[0][49], (uint32_t&)d[0][50], (uint32_t&)d[0][51],
+                                (uint32_t&)d[0][52], (uint32_t&)d[0][53], (uint32_t&)d[0][54], (uint32_t&)d[0][55],
+                                (uint32_t&)d[0][56], (uint32_t&)d[0][57], (uint32_t&)d[0][58], (uint32_t&)d[0][59],
+                                (uint32_t&)d[0][60], (uint32_t&)d[0][61], (uint32_t&)d[0][62], (uint32_t&)d[0][63],
+                               tmem_base_addr);
     }
     load_wait();
-        
+
+    if(warp == 0) {
+        load_tmem_to_registers((uint32_t&)d[32][0], (uint32_t&)d[32][1], (uint32_t&)d[32][2], (uint32_t&)d[32][3],
+                                (uint32_t&)d[32][4], (uint32_t&)d[32][5], (uint32_t&)d[32][6], (uint32_t&)d[32][7],
+                                (uint32_t&)d[32][8], (uint32_t&)d[32][9], (uint32_t&)d[32][10], (uint32_t&)d[32][11],
+                                (uint32_t&)d[32][12], (uint32_t&)d[32][13], (uint32_t&)d[32][14], (uint32_t&)d[32][15],
+                                (uint32_t&)d[32][16], (uint32_t&)d[32][17], (uint32_t&)d[32][18], (uint32_t&)d[32][19],
+                                (uint32_t&)d[32][20], (uint32_t&)d[32][21], (uint32_t&)d[32][22], (uint32_t&)d[32][23],
+                                (uint32_t&)d[32][24], (uint32_t&)d[32][25], (uint32_t&)d[32][26], (uint32_t&)d[32][27],
+                                (uint32_t&)d[32][28], (uint32_t&)d[32][29], (uint32_t&)d[32][30], (uint32_t&)d[32][31],
+                                (uint32_t&)d[32][32], (uint32_t&)d[32][33], (uint32_t&)d[32][34], (uint32_t&)d[32][35],
+                                (uint32_t&)d[32][36], (uint32_t&)d[32][37], (uint32_t&)d[32][38], (uint32_t&)d[32][39],
+                                (uint32_t&)d[32][40], (uint32_t&)d[32][41], (uint32_t&)d[32][42], (uint32_t&)d[32][43],
+                                (uint32_t&)d[32][44], (uint32_t&)d[32][45], (uint32_t&)d[32][46], (uint32_t&)d[32][47],
+                                (uint32_t&)d[32][48], (uint32_t&)d[32][49], (uint32_t&)d[32][50], (uint32_t&)d[32][51],
+                                (uint32_t&)d[32][52], (uint32_t&)d[32][53], (uint32_t&)d[32][54], (uint32_t&)d[32][55],
+                                (uint32_t&)d[32][56], (uint32_t&)d[32][57], (uint32_t&)d[32][58], (uint32_t&)d[32][59],
+                                (uint32_t&)d[32][60], (uint32_t&)d[32][61], (uint32_t&)d[32][62], (uint32_t&)d[32][63], (tmem_base_addr + 0x00200000));
+    }
+    load_wait();
+
     bf16 *block_C = C + num_blocks_n * BN * M + num_blocks_m * BM;             
     int idx = tid % 64;
     for(int cols = 0; cols < 32; ++cols) {
