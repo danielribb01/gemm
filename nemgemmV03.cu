@@ -170,7 +170,7 @@ __device__ void load_tmem_to_registers(float* d[32][64], uint32_t const &tmem_ba
 }
 
 
-template<uint8_t ScaleOut>
+template<uint8_t Acc>
 __device__ void mma64x64x16(bf16* sA, bf16* sB, uint32_t const &base_tmem_ptr) {
     uint64_t desc_a = 0x4000004000000000 | 
         (matrix_descriptor_encode(static_cast<uint64_t>(__cvta_generic_to_shared(sA))));
@@ -186,7 +186,7 @@ __device__ void mma64x64x16(bf16* sA, bf16* sB, uint32_t const &base_tmem_ptr) {
         "tcgen05.mma.cta_group::1.kind::f16 [%0], %1, %2, %3, {%5, %6, %7, %8}, p; \n\t"
         "}\n"
         :
-        : "r"(base_tmem_ptr), "l"(desc_a), "l"(desc_b), "r"(instruction_desc), "r"(ScaleOut),
+        : "r"(base_tmem_ptr), "l"(desc_a), "l"(desc_b), "r"(instruction_desc), "r"(Acc),
           "r"(mask[0]), "r"(mask[1]), "r"(mask[2]), "r"(mask[3]));
 }
 
@@ -276,12 +276,12 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     load_wait();
         
     bf16 *block_C = C + num_blocks_n * BN * M + num_blocks_m * BM;             
-    
+    int idx = tid % 64;
     for(int cols = 0; cols < 32; ++cols) {
         if(warp == 0 || warp == 1) {
-            block_C[tid%64] = __float2bfloat16(d[tid%64][cols]);
+            block_C[idx] = __float2bfloat16(d[idx][cols]);
         } else {
-            block_C[tid%64] = __float2bfloat16(d[tid%64][cols + 32]);
+            block_C[idx] = __float2bfloat16(d[idx][cols + 32]);
         }
         __syncthreads();
     }
