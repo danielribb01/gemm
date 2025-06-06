@@ -213,7 +213,7 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     __syncthreads();
 
     // Output accumulator
-    float d[64][64];
+    float d[64][64] = {};
 
     // Block indices
     const int num_blocks_k = K / BK;
