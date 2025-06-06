@@ -128,7 +128,7 @@ __device__ static inline void load_wait() {
 }
 
 // Load accumulator from TMEM to registers using tcgen05.ld
-__device__ void load_tmem_to_registers(float* d[64][64], uint32_t const &tmem_base_addr) {
+__device__ void load_tmem_to_registers(float d[64][64], uint32_t const &tmem_base_addr) {
     asm volatile (" {\n"
                   " tcgen05.ld.sync.aligned.32x32b.x64.b32 "
                   "{%0, %1, %2, %3, "
