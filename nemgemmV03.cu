@@ -129,7 +129,7 @@ __device__ static inline void load_wait() {
 }
 
 // Load accumulator from TMEM to registers using tcgen05.ld
-__device__ void load_tmem_to_registers(float* d[32][64], uint32_t const &tmem_base_addr) {
+__device__ void load_tmem_to_registers(float d[32][64], uint32_t const &tmem_base_addr) {
     asm volatile (" {\n"
                   " tcgen05.ld.sync.aligned.32x32b.x64.b32 "
                   "{%0, %1, %2, %3, "
@@ -268,8 +268,8 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
 
     // Load accumulator from TMEM
     if(warp == 0) {
-        load_tmem_to_registers(&d[0][0], tmem_base_addr);
-        load_tmem_to_registers(&d[32][0], (tmem_base_addr + 0x00200000));
+        load_tmem_to_registers(d, tmem_base_addr);
+        load_tmem_to_registers(d+32, (tmem_base_addr + 0x00200000));
     }
     load_wait();
         
