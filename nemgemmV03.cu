@@ -195,9 +195,7 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     int M, int N, int K, 
     bf16* C,
     const CUtensorMap* tensorMapA, 
-    const CUtensorMap* tensorMapB,
-    float alpha, float beta
-) {
+    const CUtensorMap* tensorMapB) {
     int tid = threadIdx.x;
     int warp = tid / 32;
 
