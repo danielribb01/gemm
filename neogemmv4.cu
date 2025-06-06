@@ -170,7 +170,7 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
 
     // Shared memory buffers - 128-byte aligned
     __shared__ alignas(128) bf16 sA[BM * BK];
-    __shared__ alignas(128) bf16 sB[BK * BK];
+    __shared__ alignas(128) bf16 sB[BK * BN];
     __shared__ alignas(16) uint32_t tmem_base_addr;
     __shared__ alignas(16) uint64_t mma_barrier_addr;
 
