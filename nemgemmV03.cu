@@ -1,7 +1,6 @@
 #include <cuda.h>
 #include <cudaTypedefs.h>
 #include <cuda/barrier>
-#include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
 #include <stdlib.h>
