@@ -27,7 +27,7 @@ using barrier = cuda::barrier<cuda::thread_scope_block>;
 // Global variables for TMA maps to avoid reallocation
 static CUtensorMap *d_tma_map_A = nullptr;
 static CUtensorMap *d_tma_map_B = nullptr;
-static constexpr int maxCollums = 512;
+static constexpr int maxCollums = 64;
 static int prev_m = 0, prev_n = 0, prev_k = 0;
 
 template <int BlockMajorSize, int BlockMinorSize>
@@ -150,22 +150,22 @@ __device__ void load_tmem_to_registers(float* d[32][64], uint32_t const &tmem_ba
                   " %60, %61, %62, %63}, "              
                   "[%64];\n"
                   "}\n"
-                :  "=f"(d[0][0]), "=f(d[0][1])", "=f(d[0][2])", "=f(d[0][3])",
-                   "=f"(d[0][4]), "=f(d[0][5])", "=f(d[0][6])", "=f(d[0][7])",
-                   "=f"(d[0][8]), "=f(d[0][9])", "=f(d[0][10])", "=f(d[0][11])",
-                   "=f"(d[0][12]), "=f(d[0][13])", "=f(d[0][14])", "=f(d[0][15])",
-                   "=f"(d[0][16]), "=f(d[0][17])", "=f(d[0][18])", "=f(d[0][19])",
-                   "=f"(d[0][20]), "=f(d[0][21])", "=f(d[0][22])", "=f(d[0][23])",
-                   "=f"(d[0][24]), "=f(d[0][25])", "=f(d[0][26])", "=f(d[0][27])",
-                   "=f"(d[0][28]), "=f(d[0][29])", "=f(d[0][30])", "=f(d[0][31])",
-                   "=f"(d[0][32]), "=f(d[0][33])", "=f(d[0][34])", "=f(d[0][35])",
-                   "=f"(d[0][36]), "=f(d[0][37])", "=f(d[0][38])", "=f(d[0][39])",
-                   "=f"(d[0][40]), "=f(d[0][41])", "=f(d[0][42])", "=f(d[0][43])",
-                   "=f"(d[0][44]), "=f(d[0][45])", "=f(d[0][46])", "=f(d[0][47])",
-                   "=f"(d[0][48]), "=f(d[0][49])", "=f(d[0][50])", "=f(d[0][51])",
-                   "=f"(d[0][52]), "=f(d[0][53])", "=f(d[0][54])", "=f(d[0][55])",
-                   "=f"(d[0][56]), "=f(d[0][57])", "=f(d[0][58])", "=f(d[0][59])",
-                   "=f"(d[0][60]), "=f(d[0][61])", "=f(d[0][62])", "=f(d[0][63])",
+                : "=f"(d[0][0]), "=f(d[0][1])", "=f(d[0][2])", "=f(d[0][3])",
+                  "=f"(d[0][4]), "=f(d[0][5])", "=f(d[0][6])", "=f(d[0][7])",
+                  "=f"(d[0][8]), "=f(d[0][9])", "=f(d[0][10])", "=f(d[0][11])",
+                  "=f"(d[0][12]), "=f(d[0][13])", "=f(d[0][14])", "=f(d[0][15])",
+                  "=f"(d[0][16]), "=f(d[0][17])", "=f(d[0][18])", "=f(d[0][19])",
+                  "=f"(d[0][20]), "=f(d[0][21])", "=f(d[0][22])", "=f(d[0][23])",
+                  "=f"(d[0][24]), "=f(d[0][25])", "=f(d[0][26])", "=f(d[0][27])",
+                  "=f"(d[0][28]), "=f(d[0][29])", "=f(d[0][30])", "=f(d[0][31])",
+                  "=f"(d[0][32]), "=f(d[0][33])", "=f(d[0][34])", "=f(d[0][35])",
+                  "=f"(d[0][36]), "=f(d[0][37])", "=f(d[0][38])", "=f(d[0][39])",
+                  "=f"(d[0][40]), "=f(d[0][41])", "=f(d[0][42])", "=f(d[0][43])",
+                  "=f"(d[0][44]), "=f(d[0][45])", "=f(d[0][46])", "=f(d[0][47])",
+                  "=f"(d[0][48]), "=f(d[0][49])", "=f(d[0][50])", "=f(d[0][51])",
+                  "=f"(d[0][52]), "=f(d[0][53])", "=f(d[0][54])", "=f(d[0][55])",
+                  "=f"(d[0][56]), "=f(d[0][57])", "=f(d[0][58])", "=f(d[0][59])",
+                  "=f"(d[0][60]), "=f(d[0][61])", "=f(d[0][62])", "=f(d[0][63])",
                 :  "r"(tmem_base_addr));
 }
 
@@ -215,7 +215,7 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
     __syncthreads();
 
     // Output accumulator
-    float d[64][64] = {};
+    float d[64][64];
 
     // Block indices
     const int num_blocks_k = K / BK;
@@ -255,36 +255,35 @@ __global__ void __launch_bounds__(NUM_THREADS) gemm_kernel(
         __syncthreads();
 
     }
-    for(int mmaItK = 0; mmaItK < BK / MMA_K; ++mmaItK) {
-        if (tid == 0) {
-            barrier_init(mma_barrier_addr); // Initialize barriers
+    if (tid == 0) {
+        barrier_init(mma_barrier_addr); // Initialize barriers
 
-            uint8_t accD;
-            accD = (mmaItK == 0) ? 0 : 1;
-            // Perform MMA operations for different K iterations
-            mma64x64x16<accD>(&sA[mmaItK * MMA_K], &sB[mmaItK * MMA_K * BN], tmem_base_addr);
-        }
+        // Perform MMA operations for different K iterations
+        mma64x64x16<0>(&sA[0], &sB[0], tmem_base_addr);
+        mma64x64x16<1>(&sA[MMA_K], &sB[MMA_K * BN], tmem_base_addr);
+        mma64x64x16<1>(&sA[2 * MMA_K], &sB[2 * MMA_K * BN], tmem_base_addr);
+        mma64x64x16<1>(&sA[3 * MMA_K], &sB[2 * MMA_K * BN], tmem_base_addr);
+    }
 
-        barrier_arrive(mma_barrier_addr);
-        cta_commit(mma_barrier_addr);
+    barrier_arrive(mma_barrier_addr);
+    cta_commit(mma_barrier_addr);
 
-        // Load accumulator from TMEM
-        if(warp == 0) {
-            load_tmem_to_registers(&d[0][0], tmem_base_addr);
-            load_tmem_to_registers(&d[32][0], (tmem_base_addr + 0x00200000));
-        }
-        load_wait();
+    // Load accumulator from TMEM
+    if(warp == 0) {
+        load_tmem_to_registers(&d[0][0], tmem_base_addr);
+        load_tmem_to_registers(&d[32][0], (tmem_base_addr + 0x00200000));
+    }
+    load_wait();
         
-        bf16 *block_C = C + num_blocks_n * BN * M + num_blocks_m * BM;             
-        
-        for(int cols = 0; cols < 32; ++cols) {
-            if(warp == 0 || warp == 1) {
-                block_C[tid%64] = __float2bfloat16(d[tid%64][cols]);
-            } else {
-                block_C[tid%64] = __float2bfloat16(d[tid%64][cols + 32]);
-            }
-            __syncthreads();
+    bf16 *block_C = C + num_blocks_n * BN * M + num_blocks_m * BM;             
+    
+    for(int cols = 0; cols < 32; ++cols) {
+        if(warp == 0 || warp == 1) {
+            block_C[tid%64] = __float2bfloat16(d[tid%64][cols]);
+        } else {
+            block_C[tid%64] = __float2bfloat16(d[tid%64][cols + 32]);
         }
+        __syncthreads();
     }
     if(warp == 0) {
         release_lock();
