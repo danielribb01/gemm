@@ -27,7 +27,7 @@ using barrier = cuda::barrier<cuda::thread_scope_block>;
 // Global variables for TMA maps to avoid reallocation
 static CUtensorMap *d_tma_map_A = nullptr;
 static CUtensorMap *d_tma_map_B = nullptr;
-static constexpr int maxCollums = 64;
+static constexpr int maxCollums = 512;
 static int prev_m = 0, prev_n = 0, prev_k = 0;
 
 template <int BlockMajorSize, int BlockMinorSize>
